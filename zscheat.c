@@ -11,14 +11,7 @@
 
 struct bin_cheat {
 	uint8_t active;
-	//union {
-	//	struct {
-	//		uint8_t value;
-	//		uint32_t address:24;
-	//	} data;
-
-		uint32_t code;
-	//} : 32;
+	uint32_t code;
 	
 	uint8_t previous;
 	uint8_t _dummy01;
@@ -97,7 +90,7 @@ static void parse_line(char line[], int *ncodes, uint32_t *codes, char desc[]) {
 
 	strncpy(desc, c, MAX_CHARS);
 
-	// clear new lines
+	/* clear new lines */
 	c = desc;
 	while (*c && *c != '\n' && *c != '\r') {
 		*c = toupper(*c);
@@ -115,8 +108,8 @@ static void put_cheat(int ncodes, uint32_t *codes, char desc[]) {
 
 	int i;
 	for (i = 0; i < ncodes; i++) {
-		//cheat->data.value  = codes[i] & 0xff;
-		//cheat->data.address = codes[i] >> 1;
+
+		/* zsnes expects FE FC on the first cheat for some reason */
 		if (num_cheats == 0) {
 			cheat->_dummy01 = 0xfe;
 			cheat->_dummy02 = 0xfc;
