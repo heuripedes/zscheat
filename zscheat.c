@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #define MAX_CODES 4
 #define MAX_CHEATS 1024
@@ -141,28 +142,128 @@ static void write_cheats(FILE *ofp) {
 			fwrite(cheats, sizeof(struct bin_cheat), num_cheats, ofp));
 }
 
-int main(int argc, char* argv[]) {
-	FILE *fp;
 
-	if (argc < 3) {
-		printf("usage %s [input file] [output file]\n", argv[0]);
-		return 0;
+static struct {
+	char *name;
+	void (*wfunc)(FILE *fp);
+} formats[] = {
+	{ .name = "zsnes", .wfunc = write_cheats },
+	{ .name = NULL }
+};
+
+static int get_format_id(const char* fmt) {
+	int i;
+	for (i = 0; formats[i].name; i++) {
+		if (strcmp(fmt, formats[i].name) == 0)
+			return i;
 	}
 
-	if ((fp = fopen(argv[1], "r")) == NULL) {
+	return -1;
+}
+
+static void usage(const char* cmd) {
+	int i, count;
+	printf( "Usage: %s [OPTIONS] input_file output_file\n\n", cmd);
+	printf( "Options:\n"
+			" -h            Show this help.\n"
+			" -f FORMAT     Set output format to FORMAT (default zsnes).\n"
+			" -i FILE       Set input filename to FILE.\n"
+			" -i -          Read plain-text cheats from standard input.\n"
+			" -o FILE       Set output filename to FILE.\n"
+			"\n");
+	printf( "Output formats:\n");
+
+	count = 0;
+	for (i = 0; formats[i].name; i++) {
+		printf("  %8s ", formats[i].name);
+
+		if (count && count % 4 == 0)
+			printf("\n");
+		count++;
+	}
+
+	if (count < 4)
+		printf("\n");
+	printf("\n");
+
+	printf( "NOTE: ZSNES will not read more than 255 cheats from the cheat\n"
+			"file.\n"
+			"\n");
+}
+
+int main(int argc, char* argv[]) {
+	FILE *fp;
+	char *ifile = NULL;
+	char *ofile = NULL;
+	int format = 0;
+	int c;
+
+	if (argc < 3) {
+		usage(argv[0]);
+		return EXIT_FAILURE;
+	}
+
+	while ((c = getopt(argc, argv, "hf:i:o:")) != -1) {
+		switch (c) {
+			case 'h':
+				usage(argv[0]);
+				break;
+
+			case 'i':
+				ifile = optarg;
+				break;
+
+			case 'o':
+				ofile = optarg;
+				break;
+
+			case 'f':
+				format = get_format_id(optarg);
+
+				if (format < 0) {
+					fprintf(stderr, "Invalid output format %s specified.\n", optarg);
+					format = 0;
+				}
+
+				break;
+
+			case '?':
+				if (optopt == 'i' || optopt == 'o')
+					fprintf(stderr, "Option -%c requires a file name.\n", optopt);
+				else
+					fprintf(stderr, "Unknown option -%c.\n", optopt);
+
+				return EXIT_FAILURE;
+
+			default:
+				abort();
+		}
+	}
+
+	if (optind < argc && !ifile)
+		ifile = argv[optind++];
+
+	if (optind < argc && !ofile)
+		ofile = argv[optind++];
+
+	if (strcmp(ifile, "-") == 0)
+		fp = stdin;
+	else if ((fp = fopen(argv[1], "r")) == NULL) {
 		perror("failed to open input file");
 		abort();
 	}
 
 	parse(fp);
-	fclose(fp);
+
+	if (fp != stdin)
+		fclose(fp);
 	
 	if ((fp = fopen(argv[2], "wb")) == NULL) {
 		perror("failed to open input file");
 		abort();
 	}
 
-	write_cheats(fp);
+	formats[format].wfunc(fp);
 
 	fclose(fp);
 
